@@ -17,13 +17,13 @@ public:
 
 	String& operator= (const String& other);
 
+	~String() { delete[] this->str; }
+
 	String* clone() const override { return new (std::nothrow) String(*this); }
 
 	char* getString() const override { return this->str; }
 
 	void setStr(const char* _str);
-
-	~String() { delete[] this->str; }
 };
 #endif
 
