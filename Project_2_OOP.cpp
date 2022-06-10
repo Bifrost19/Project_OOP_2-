@@ -9,6 +9,21 @@
 using namespace std;
 
 Table* Table::tableInstance = nullptr;
+bool Table::isTableOpened = false;
+bool Table::isThereUnsavedChanges = false;
+char* Table::currentFileName = nullptr;
+
+//Deallocation functions
+
+void deallocateStaticVars()
+{
+
+	delete[] Table::tableInstance;
+	Table::tableInstance = nullptr;
+
+	delete[] Table::currentFileName;
+	Table::currentFileName = nullptr;
+}
 
 //Allocation functions
 
@@ -635,8 +650,16 @@ void evaluateFormulas(int** formulaIndexArray, unsigned int formulaCount, DataTy
 		}
 		else
 		{
-			table[formulaIndexArray[i][0]][formulaIndexArray[i][1]] = new (nothrow) String(formula);
-			if (!table[formulaIndexArray[i][0]][formulaIndexArray[i][1]]) throw "Memory problem!";
+			if (isDoubleNumValid(formula))
+			{
+				table[formulaIndexArray[i][0]][formulaIndexArray[i][1]] = new (nothrow) Double(convertFromStringToDouble(formula));
+				if (!table[formulaIndexArray[i][0]][formulaIndexArray[i][1]]) throw "Memory problem!";
+			}
+			else if (isIntNumValid(formula))
+			{
+				table[formulaIndexArray[i][0]][formulaIndexArray[i][1]] = new (nothrow) Int(convertFromStringToInt(formula));
+				if (!table[formulaIndexArray[i][0]][formulaIndexArray[i][1]]) throw "Memory problem!";
+			}
 		}
 	}
 }
@@ -665,18 +688,7 @@ bool isThereOnlySpaces(char array[])
 	return true;
 }
 
-unsigned int countComma(char array[], unsigned int colCount)
-{
-	unsigned int counter = 0;
-
-	for (int i = 0; i < strlen(array); i++)
-	{
-		if (array[i] == ',' && i != strlen(array) - 1) counter++;
-	}
-	return ((counter != 0) ? counter + 1 : colCount);
-}
-
-char** separateCells(char array[], unsigned int colCount)
+char** separateCells(char array[], unsigned int colCount, unsigned int& cellCountInCells)
 {
 	char** cells = new (nothrow) char* [colCount];
 	if (!cells) throw "Memory problem!";
@@ -743,21 +755,48 @@ char** separateCells(char array[], unsigned int colCount)
 		}
 	}
 
+	cellCountInCells = iterator;
 	return cells;
 
 }
 
-//Printing and reading
-
-void printValue(DataType* dataType)
+void checkSizeOfTable(unsigned int row, unsigned int col)
 {
-	if (typeid(*dataType) == typeid(Int))
-		cout << dataType->getInt();
-	else if (typeid(*dataType) == typeid(Double))
-		cout << dataType->getDouble();
-	else if (typeid(*dataType) == typeid(String))
-		cout << dataType->getString();
+	if (row > Table::tableInstance->getRowCount() && col > Table::tableInstance->getColCount())
+		Table::tableInstance->resizeTable(row, col);
+	else if (row > Table::tableInstance->getRowCount())
+		Table::tableInstance->resizeTable(row, Table::tableInstance->getColCount());
+	else if (col > Table::tableInstance->getColCount())
+		Table::tableInstance->resizeTable(Table::tableInstance->getRowCount(), col);
 }
+
+unsigned int getLengthOfCell(DataType* cell)
+{
+	if (typeid(*cell) == typeid(Int))
+		return findNumIntLength(cell->getInt());
+	else if (typeid(*cell) == typeid(Double))
+		return findNumDoubleLength(cell->getDouble());
+	else if (typeid(*cell) == typeid(String))
+		return strlen(cell->getString());
+}
+
+void placeSpace(unsigned int quantity)
+{
+	for (int i = 0; i < quantity; i++)
+	{
+		cout << " ";
+	}
+}
+
+void placeSpaceInFile(ofstream& fileW, unsigned int quantity)
+{
+	for (int i = 0; i < quantity; i++)
+	{
+		fileW << " ";
+	}
+}
+
+//Write and read to file
 
 void readTableFromFile(fstream& fileR)
 {
@@ -795,17 +834,15 @@ void readTableFromFile(fstream& fileR)
 		char initialLine[100];
 		fileR.getline(initialLine, 100);
 
-		//Count commas on 1 line
-		unsigned int cellCount = countComma(initialLine, colCount);
+		unsigned int cellCountInCells = 0;
 
 		//Separate the cells in array
-		char** cells = separateCells(initialLine, colCount);
+		char** cells = separateCells(initialLine, colCount, cellCountInCells);
 
 		//Fill the empty cells
-		for (int k = cellCount; k < colCount; k++)
+		for (int k = cellCountInCells; k < colCount; k++)
 		{
 			strcpy_s(cells[k], 1, "");
-			cellCount++;
 		}
 
 		//Convert to one of the three allowed variable types, each cell can hold
@@ -844,11 +881,11 @@ void readTableFromFile(fstream& fileR)
 			}
 			else
 			{
-				if(!strcmp(cells[j], "")) table[i][j] = new (nothrow) String("#");
+				if(!strcmp(cells[j], "")) table[i][j] = new (nothrow) String("");
 				else
 				{
-					table[i][j] = new (nothrow) String("#");
-					cout << "Invalid format of info on row " << i << " and col " << j << endl;
+					cout << "Error: row  " << i + 1 << ", col " << j + 1 << ", " << cells[j] << " is unknown data type." << endl;
+					throw "Error: Invalid format";
 				}
 
 			}
@@ -861,40 +898,337 @@ void readTableFromFile(fstream& fileR)
 	if (!Table::tableInstance) throw "Memory problem!";
 
 	//Evaluate the formulas
-	evaluateFormulas(formulaIndexArray, formulaCount, table);
-
-	//Tests
-	for (int i = 0; i < rowCount; i++)
-	{
-
-		for (int j = 0; j < colCount; j++)
-		{
-			printValue(table[i][j]);
-			cout << " ";
-		}
-		cout << endl;
-	}
-
+	evaluateFormulas(formulaIndexArray, formulaCount, Table::tableInstance->getTable());
 }
 
 void readFromFile()
 {
+	fstream fileR;
+	do
+	{
+		char fileName[50];
+		cout << "Enter the name of the file you want to read from: ";
+		cin.getline(fileName, 50);
+
+		strcat_s(fileName, ".txt");
+
+		fileR.open(fileName, ios::in);
+		if (!fileR.is_open())
+		{
+			cout << "A file with such name can't be opened!" << endl;
+		}
+		else
+		{
+			Table::currentFileName = new (nothrow) char[strlen(fileName) + 1];
+			if (!Table::currentFileName) throw "Memory problem!";
+
+			strcpy_s(Table::currentFileName, strlen(fileName) + 1, fileName);
+		}
+
+	} while (!fileR.is_open());
+
+	readTableFromFile(fileR);
+	Table::isTableOpened = true;
+
+	fileR.close();
+}
+
+void writeToFile(ofstream& fileW)
+{
+	fileW << Table::tableInstance->getRowCount() << " "
+		  << Table::tableInstance->getColCount() << endl;
+
+	//Store the length of the longest element in each column
+	int* elementLengthArray = new (nothrow) int[Table::tableInstance->getColCount()];
+	if (!elementLengthArray) throw "Memory problem!";
+
+	for (int i = 0; i < Table::tableInstance->getColCount(); i++)
+	{
+		int maxLength = 0;
+
+		for (int j = 0; j < Table::tableInstance->getRowCount(); j++)
+		{
+			if (maxLength < ((typeid(*Table::tableInstance->getTable()[j][i]) == typeid(String) && strcmp(Table::tableInstance->getTable()[j][i]->getString(), "")) ? getLengthOfCell(Table::tableInstance->getTable()[j][i]) + 2 : getLengthOfCell(Table::tableInstance->getTable()[j][i])))
+				maxLength = ((typeid(*Table::tableInstance->getTable()[j][i]) == typeid(String) && strcmp(Table::tableInstance->getTable()[j][i]->getString(), "")) ? getLengthOfCell(Table::tableInstance->getTable()[j][i]) + 2 : getLengthOfCell(Table::tableInstance->getTable()[j][i]));
+		}
+
+		elementLengthArray[i] = maxLength;
+	}
+
+	//Print the table
+	for (int i = 0; i < Table::tableInstance->getRowCount(); i++)
+	{
+		for (int j = 0; j < Table::tableInstance->getColCount(); j++)
+		{
+			if (elementLengthArray[j] == 0)
+				fileW << " ";
+
+			else if ((typeid(*Table::tableInstance->getTable()[i][j]) == typeid(String) && strcmp(Table::tableInstance->getTable()[i][j]->getString(), "")))
+				placeSpaceInFile(fileW, elementLengthArray[j] - getLengthOfCell(Table::tableInstance->getTable()[i][j]) - 2);
+			else
+				placeSpaceInFile(fileW, elementLengthArray[j] - getLengthOfCell(Table::tableInstance->getTable()[i][j]));
+
+			Table::tableInstance->printValueInFile(Table::tableInstance->getTable()[i][j], fileW);
+			fileW << ",";
+		}
+		fileW << endl;
+	}
+	delete[] elementLengthArray;
+}
+
+//Main functionalities
+
+void editTable()
+{
+	cout << "...../Editing mode/......" << endl;
+
+	int row;
+	int col;
+
+	//Row
+	do
+	{
+		cout << "Enter the row: ";
+		cin >> row;
+	} while (row <= 0);
+
+	//Col
+	do
+	{
+		cout << "Enter the column: ";
+		cin >> col;
+	} while (col <= 0);
+
+	char cellInfo[50];
+	DataType* cellData = nullptr;
+
+	cin.ignore();
+	cin.getline(cellInfo, 50);
+
+	removeWhiteSpaces(cellInfo);
+
+	if (isDoubleNumValid(cellInfo))
+	{
+		checkSizeOfTable(row, col);
+		delete[] Table::tableInstance->getTable()[row - 1][col - 1];
+		Table::tableInstance->getTable()[row - 1][col - 1] = new (std::nothrow) Double(convertFromStringToDouble(cellInfo));
+		if (!Table::tableInstance->getTable()[row - 1][col - 1]) throw "Memory problem!";
+	}
+	else if (isIntNumValid(cellInfo))
+	{
+		checkSizeOfTable(row, col);
+		delete[] Table::tableInstance->getTable()[row - 1][col - 1];
+		Table::tableInstance->getTable()[row - 1][col - 1] = new (std::nothrow) Int(convertFromStringToInt(cellInfo));
+		if (!Table::tableInstance->getTable()[row - 1][col - 1]) throw "Memory problem!";
+	}
+	else if (cellInfo[0] == '"' && cellInfo[strlen(cellInfo) - 1] == '"')
+	{
+		checkSizeOfTable(row, col);
+		delete[] Table::tableInstance->getTable()[row - 1][col - 1];
+		Table::tableInstance->getTable()[row - 1][col - 1] = new (std::nothrow) String(removeQuotationMarks(cellInfo));
+		if (!Table::tableInstance->getTable()[row - 1][col - 1]) throw "Memory problem!";
+	}
+	else if (cellInfo[0] == '=')
+	{
+		checkSizeOfTable(row, col);
+		char formulaWithoutEqualSign[50];
+		strcpy_s(formulaWithoutEqualSign, cellInfo);
+
+		removeEqualSign(formulaWithoutEqualSign);
+
+		delete[] Table::tableInstance->getTable()[row - 1][col - 1];
+		Table::tableInstance->getTable()[row - 1][col - 1] = new (std::nothrow) String(formulaWithoutEqualSign);
+		if (!Table::tableInstance->getTable()[row - 1][col - 1]) throw "Memory problem!";
+
+		int** formulaIndexArray = new (nothrow) int*[1];
+		if (!formulaIndexArray) throw "Memory problem!";
+
+		formulaIndexArray[0] = new (nothrow) int[2];
+		if (!formulaIndexArray[0]) throw "Memory problem!";
+
+		formulaIndexArray[0][0] = row - 1;
+		formulaIndexArray[0][1] = col - 1;
+		evaluateFormulas(formulaIndexArray, 1, Table::tableInstance->getTable());
+	}
+	else
+	{
+		cout << "Error: Invalid data" << endl;
+		return;
+	}
+	Table::isThereUnsavedChanges = true;
+}
+
+void printTable()
+{
+	//Store the length of the longest element in each column
+	int* elementLengthArray = new (nothrow) int[Table::tableInstance->getColCount()];
+	if (!elementLengthArray) throw "Memory problem!";
+
+	for (int i = 0; i < Table::tableInstance->getColCount(); i++)
+	{
+		int maxLength = 0;
+
+		for (int j = 0; j < Table::tableInstance->getRowCount(); j++)
+		{
+			if (maxLength < getLengthOfCell(Table::tableInstance->getTable()[j][i]))
+				maxLength = getLengthOfCell(Table::tableInstance->getTable()[j][i]);
+		}
+
+		elementLengthArray[i] = maxLength;
+	}
+
+	//Print the table
+	for (int i = 0; i < Table::tableInstance->getRowCount(); i++)
+	{
+		for (int j = 0; j < Table::tableInstance->getColCount(); j++)
+		{
+			if (elementLengthArray[j] == 0)
+				cout << " ";
+			else
+			placeSpace(elementLengthArray[j] - getLengthOfCell(Table::tableInstance->getTable()[i][j]));
+			
+			Table::tableInstance->printValue(Table::tableInstance->getTable()[i][j]);
+			cout << "|";
+		}
+		cout << endl;
+	}
+	delete[] elementLengthArray;
+}
+
+void saveTable()
+{
+	if (!Table::isTableOpened)
+	{
+		cout << "There isn't any opened table to save!";
+		return;
+	}
+
+	ofstream fileW(Table::currentFileName);
+
+	if (!fileW.is_open()) throw "Problem with opening the file!";
+
+	writeToFile(fileW);
+
+	fileW.close();
+
+	Table::isThereUnsavedChanges = false;
+	cout << "The table was saved successfully!" << endl;
+}
+
+void saveAsTable()
+{
+	if (!Table::isTableOpened)
+	{
+		cout << "There isn't any opened table to save!";
+		return;
+	}
+
 	char fileName[50];
-	cout << "Enter the name of the file you want to read from: ";
+	cout << "Enter the name of the file you want to save the table: ";
 	cin.getline(fileName, 50);
 
 	strcat_s(fileName, ".txt");
 
-	fstream fileR(fileName, ios::in);
-	if (!fileR.is_open()) throw "A file with such name can't be opened!";
+	ofstream fileW(fileName);
 
-	readTableFromFile(fileR);
+	if (!fileW.is_open()) throw "Problem with opening the file!";
+
+	writeToFile(fileW);
+
+	fileW.close();
+
+	Table::isThereUnsavedChanges = false;
+	cout << "The table was saved successfully!" << endl;
+}
+
+void closeTable()
+{
+	if (!Table::isTableOpened)
+	{
+		cout << "There isn't any opened table to close!" << endl;
+		return;
+	}
+	if (Table::isThereUnsavedChanges == true)
+	{
+		cout << "Do you want to save the changes? Y/N" << endl;
+
+		char choice;
+
+		do
+		{
+			cin >> choice;
+		} while (choice != 'N' && choice != 'n' && choice != 'Y' && choice != 'y');
+
+		if (choice == 'Y' || choice == 'y')
+		{
+			saveTable();
+		}
+
+		cin.ignore();
+	}
+	
+	cout << "The table was closed successfully!" << endl;
+	Table::isTableOpened = false;
+	deallocateStaticVars();
+}
+
+void openTable()
+{
+	if (Table::isTableOpened)
+	{
+		cout << "There is opened table already!" << endl;
+		return;
+	}
+
+	readFromFile();
+	cout << "The table was opened successfully!" << endl;
+}
+
+void help()
+{
+	cout << "Available commands: open / close / help / edit / print /"
+			 << " save / saveas / clear / exit" << endl;
+}
+
+void executeCommand(char command[])
+{
+	if (!strcmp(command, "open"))
+		openTable();
+	else if (!strcmp(command, "close"))
+		closeTable();
+	else if (!strcmp(command, "help"))
+		help();
+	else if (!strcmp(command, "edit"))
+		editTable();
+	else if (!strcmp(command, "print"))
+		printTable();
+	else if (!strcmp(command, "save"))
+		saveTable();
+	else if (!strcmp(command, "saveas"))
+		saveAsTable();
+	else if (!strcmp(command, "clear"))
+		system("cls");
+	else if (!strcmp(command, "exit"))
+	{
+		cout << ((Table::isTableOpened) ? "You must close the table first!" : "");
+		return;
+	}
+
+	else
+		cout << "Invalid command!" << endl;
 }
 
 int main()
 {
-	readFromFile();
+	char command[100];
+	do
+	{
+		cout << endl << "Type a command (use 'help' for help)" << endl;
+		cout << ">";
+		cin.getline(command, 100);
+		executeCommand(command);
+	} while (strcmp(command, "exit") || Table::isTableOpened);
 
+	// Static vars are deallocated in close function
 	return 0;
 }
-

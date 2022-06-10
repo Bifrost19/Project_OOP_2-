@@ -8,6 +8,7 @@ class DataType
 private:
 
 public:
+	//Getters of derived classes
 	virtual int getInt() const;
 
 	virtual double getDouble() const;
