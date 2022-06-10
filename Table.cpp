@@ -20,7 +20,7 @@ void Table::allocateDataTypeTable(DataType*** table, unsigned int rowCount, unsi
 
 void Table::resizeTable(unsigned int rowCount, unsigned int colCount)
 {
-	DataType*** buffer = new (std::nothrow) DataType **[this->rowCount];
+	DataType*** buffer = new (std::nothrow) DataType * *[this->rowCount];
 	if (!buffer) throw "Memory problem!";
 
 	for (int i = 0; i < this->rowCount; i++)
@@ -132,6 +132,6 @@ void Table::printValueInFile(DataType* dataType, std::ofstream& fileW)
 	else if (typeid(*dataType) == typeid(Double))
 		fileW << dataType->getDouble();
 	else if (typeid(*dataType) == typeid(String))
-		if(strcmp(dataType->getString(), ""))
-		fileW << "\"" << dataType->getString() << "\"";
+		if (strcmp(dataType->getString(), ""))
+			fileW << "\"" << dataType->getString() << "\"";
 }

@@ -16,6 +16,7 @@ public:
 	Int* clone() const override { return new (std::nothrow) Int(*this); }
 
 	void setValue(int _value) { this->value = _value; }
+
 };
 #endif
 

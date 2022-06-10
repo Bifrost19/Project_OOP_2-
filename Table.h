@@ -24,7 +24,7 @@ public:
 	static bool isThereUnsavedChanges;
 
 	//Constructors
-	Table() : table(0), rowCount(0), colCount(0) {}
+	Table() : table(nullptr), rowCount(0), colCount(0) {}
 
 	Table(DataType*** table, unsigned int rowCount, unsigned int colCount);
 
@@ -51,4 +51,3 @@ public:
 	void printValueInFile(DataType* dataType, std::ofstream& fileW);
 };
 #endif
-
