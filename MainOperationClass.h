@@ -87,6 +87,8 @@ private:
 
 	bool isThereCommandInString(char* string, const char* command);
 
+	void verifyDataForEditFunc();
+
 	//Write and read to file
 	void readTableFromFile(fstream& fileR);
 
@@ -95,7 +97,7 @@ private:
 	void writeToFile(ofstream& fileW);
 
 	//Main functionalities
-	void editTable();
+	void editTable(unsigned int row, unsigned int col, char cellInfo[]);
 
 	void printTable();
 

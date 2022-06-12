@@ -839,6 +839,42 @@ bool MainOperationClass::isThereCommandInString(char* string, const char* comman
 	return true;
 }
 
+void MainOperationClass::verifyDataForEditFunc()
+{
+	if (!Table::isTableOpened)
+	{
+		cout << "There isn't any opened table to edit!" << endl;
+		return;
+	}
+
+	cout << "...../Editing mode/......" << endl;
+
+	int row;
+	int col;
+
+	//Row
+	do
+	{
+		cout << "Enter the row: ";
+		cin >> row;
+	} while (row <= 0);
+
+	//Col
+	do
+	{
+		cout << "Enter the column: ";
+		cin >> col;
+	} while (col <= 0);
+
+	//Data
+	char cellInfo[50];
+
+	cin.ignore();
+	cin.getline(cellInfo, 50);
+
+	editTable(row, col, cellInfo);
+}
+
 //Write and read to file
 void MainOperationClass::readTableFromFile(fstream& fileR)
 {
@@ -1015,38 +1051,10 @@ void MainOperationClass::writeToFile(ofstream& fileW)
 }
 
 //Main functionalities
-void MainOperationClass::editTable()
+void MainOperationClass::editTable(unsigned int row, unsigned int col, char cellInfo[])
 {
-	if (!Table::isTableOpened)
-	{
-		cout << "There isn't any opened table to edit!" << endl;
-		return;
-	}
 
-	cout << "...../Editing mode/......" << endl;
-
-	int row;
-	int col;
-
-	//Row
-	do
-	{
-		cout << "Enter the row: ";
-		cin >> row;
-	} while (row <= 0);
-
-	//Col
-	do
-	{
-		cout << "Enter the column: ";
-		cin >> col;
-	} while (col <= 0);
-
-	char cellInfo[50];
 	DataType* cellData = nullptr;
-
-	cin.ignore();
-	cin.getline(cellInfo, 50);
 
 	removeWhiteSpaces(cellInfo);
 
@@ -1241,7 +1249,7 @@ void MainOperationClass::executeCommand(char command[])
 	else if (!strcmp(command, "help"))
 		help();
 	else if (!strcmp(command, "edit"))
-		editTable();
+		verifyDataForEditFunc();
 	else if (!strcmp(command, "print"))
 		printTable();
 	else if (!strcmp(command, "save"))
