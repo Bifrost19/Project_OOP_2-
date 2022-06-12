@@ -2,6 +2,7 @@
 #define DATATYPE_H
 #include <cstring>
 #include <iostream>
+#include <fstream>
 
 class DataType
 {
@@ -14,6 +15,8 @@ public:
 	virtual double getDouble() const;
 
 	virtual char* getString() const;
+
+	virtual char* getFormula() const;
 
 	virtual DataType* clone() const { return new (std::nothrow) DataType(*this); }
 

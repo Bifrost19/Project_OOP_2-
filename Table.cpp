@@ -132,6 +132,10 @@ void Table::printValueInFile(DataType* dataType, std::ofstream& fileW)
 	else if (typeid(*dataType) == typeid(Double))
 		fileW << dataType->getDouble();
 	else if (typeid(*dataType) == typeid(String))
+	{
 		if (strcmp(dataType->getString(), ""))
 			fileW << "\"" << dataType->getString() << "\"";
+	}
+	else if (typeid(*dataType) == typeid(Formula))
+		fileW << dataType->getFormula();
 }

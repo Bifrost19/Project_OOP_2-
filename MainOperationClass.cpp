@@ -212,7 +212,7 @@ char* MainOperationClass::convertFromDoubleToString(double num)
 	return strDoubleNum;
 }
 
-//Removefunctions
+//Remove functions
 char* MainOperationClass::removeQuotationMarks(const char* string)
 {
 	char* newString = new (nothrow) char[strlen(string) - 1];
@@ -293,6 +293,23 @@ void MainOperationClass::removeWhiteSpaces(char initialCell[])
 	_strrev(initialCell);
 }
 
+char* MainOperationClass::removeEqualSign(const char* formula)
+{
+	char bufferArray[50];
+
+	for (int i = 1; i < strlen(formula); i++)
+	{
+		bufferArray[i - 1] = formula[i];
+	}
+	bufferArray[strlen(formula) - 1] = '\0';
+
+	char* bufferArrayP = new (nothrow) char[strlen(bufferArray) + 1];
+	if (!bufferArrayP) throw "Memory problem!";
+
+	strcpy_s(bufferArrayP, strlen(bufferArray) + 1, bufferArray);
+	return bufferArrayP;
+}
+
 //Check validity functions
 bool MainOperationClass::isCharNum(char ch)
 {
@@ -364,7 +381,7 @@ bool MainOperationClass::isIntNumValid(const char* stringNum)
 }
 
 //Calculation of Formulas functions
-DataType* MainOperationClass::getCellValue(const char* cell)
+DataType* MainOperationClass::getCellValue(const char* cell, unsigned int rowF, unsigned int colF)
 {
 	unsigned int row;
 	unsigned int col;
@@ -372,14 +389,14 @@ DataType* MainOperationClass::getCellValue(const char* cell)
 
 	for (int i = 0; i < strlen(cell); i++)
 	{
-		if (cell[i] == 'C')
+		if (cell[i] == 'C' || cell[i] == 'c')
 		{
 			isThereCInCellCoord = true;
 			break;
 		}
 	}
 
-	if (cell[0] != 'R' || !isThereCInCellCoord)
+	if ((cell[0] != 'R' && cell[0] != 'r') || !isThereCInCellCoord)
 	{
 		throw "Invalid cell coordinates!";
 	}
@@ -390,7 +407,7 @@ DataType* MainOperationClass::getCellValue(const char* cell)
 
 	for (int i = 1; i < strlen(cell); i++)
 	{
-		if (cell[i] == 'C')
+		if (cell[i] == 'C' || cell[i] == 'c')
 		{
 			isCPassed = true;
 			num[i - 1] = '\0';
@@ -412,11 +429,17 @@ DataType* MainOperationClass::getCellValue(const char* cell)
 	num[strlen(cell) - helperIndex] = '\0';
 	col = convertFromStringToInt(num);
 
+	//Prevent from infinite recursion
+	if (row - 1 == rowF && col - 1 == colF)
+		return nullptr;
+
 	if (row <= 0 || col <= 0 || row > Table::tableInstance->getRowCount() || col > Table::tableInstance->getColCount()
 		|| (typeid(*(Table::tableInstance->getTable()[row - 1][col - 1])) == typeid(String)
 			&& !isDoubleNumValid(Table::tableInstance->getTable()[row - 1][col - 1]->getString())
 			&& !isIntNumValid(Table::tableInstance->getTable()[row - 1][col - 1]->getString())))
 		return new Int(0);
+	else if (typeid(*(Table::tableInstance->getTable()[row - 1][col - 1])) == typeid(Formula))
+		return evaluateFormulas(Table::tableInstance->getTable()[row - 1][col - 1], rowF, colF);
 
 	return Table::tableInstance->getTable()[row - 1][col - 1]->clone();
 }
@@ -480,7 +503,7 @@ void MainOperationClass::refactorNumsArray(char nums[][15], unsigned length, uns
 	}
 }
 
-double MainOperationClass::checkOperandsValidity(char num[], bool& isThereError)
+double MainOperationClass::checkOperandsValidity(char num[], bool& isThereError, unsigned int rowF, unsigned int colF)
 {
 	DataType* cellInfo = nullptr;
 
@@ -488,7 +511,9 @@ double MainOperationClass::checkOperandsValidity(char num[], bool& isThereError)
 	{
 		try
 		{
-			cellInfo = getCellValue(num)->clone();
+			cellInfo = getCellValue(num, rowF, colF);
+			if(cellInfo)
+			cellInfo = getCellValue(num, rowF, colF)->clone();
 		}
 		catch (...)
 		{
@@ -497,12 +522,18 @@ double MainOperationClass::checkOperandsValidity(char num[], bool& isThereError)
 			return 0;
 		}
 
-		if (typeid(*cellInfo) == typeid(Int) && cellInfo != nullptr)
+		if (cellInfo == nullptr)
+		{
+			isThereError = true;
+			return 0;
+		}
+		else if (typeid(*cellInfo) == typeid(Int) && cellInfo != nullptr)
 			return cellInfo->getInt();
 		else if (typeid(*cellInfo) == typeid(Double) && cellInfo != nullptr)
 			return cellInfo->getDouble();
 		else if (typeid(*cellInfo) == typeid(String) && cellInfo != nullptr)
 			return convertFromStringToDouble(cellInfo->getString());
+
 	}
 
 	else if (isDoubleNumValid(num))
@@ -511,7 +542,7 @@ double MainOperationClass::checkOperandsValidity(char num[], bool& isThereError)
 		return convertFromStringToInt(num);
 }
 
-char* MainOperationClass::calculateFormula(const char* formula, bool& isThereError)
+char* MainOperationClass::calculateFormula(const char* formula, bool& isThereError, unsigned int rowF, unsigned int colF)
 {
 	const unsigned int FIXEDSIZE = 15;
 	char nums[FIXEDSIZE][FIXEDSIZE];
@@ -557,24 +588,24 @@ char* MainOperationClass::calculateFormula(const char* formula, bool& isThereErr
 
 		if (isThereSignInArray(operations, operationCounter, '^', index))
 		{
-			double firstNum = checkOperandsValidity(nums[index], isThereError);
-			double secondNum = checkOperandsValidity(nums[index + 1], isThereError);
+			double firstNum = checkOperandsValidity(nums[index], isThereError, rowF, colF);
+			double secondNum = checkOperandsValidity(nums[index + 1], isThereError, rowF, colF);
 
 			if (isThereError) return nullptr;
 			result = pow(firstNum, secondNum);
 		}
 		else if (isThereSignInArray(operations, operationCounter, '*', index))
 		{
-			double firstNum = checkOperandsValidity(nums[index], isThereError);
-			double secondNum = checkOperandsValidity(nums[index + 1], isThereError);
+			double firstNum = checkOperandsValidity(nums[index], isThereError, rowF, colF);
+			double secondNum = checkOperandsValidity(nums[index + 1], isThereError, rowF, colF);
 
 			if (isThereError) return nullptr;
 			result = firstNum * secondNum;
 		}
 		else if (isThereSignInArray(operations, operationCounter, '/', index))
 		{
-			double firstNum = checkOperandsValidity(nums[index], isThereError);
-			double secondNum = checkOperandsValidity(nums[index + 1], isThereError);
+			double firstNum = checkOperandsValidity(nums[index], isThereError, rowF, colF);
+			double secondNum = checkOperandsValidity(nums[index + 1], isThereError, rowF, colF);
 
 			if (isThereError) return nullptr;
 			if (secondNum == 0)
@@ -587,8 +618,8 @@ char* MainOperationClass::calculateFormula(const char* formula, bool& isThereErr
 		}
 		else if (isThereSignInArray(operations, operationCounter, '-', index))
 		{
-			double firstNum = checkOperandsValidity(nums[index], isThereError);
-			double secondNum = checkOperandsValidity(nums[index + 1], isThereError);
+			double firstNum = checkOperandsValidity(nums[index], isThereError, rowF, colF);
+			double secondNum = checkOperandsValidity(nums[index + 1], isThereError, rowF, colF);
 
 			if (isThereError) return nullptr;
 			result = firstNum - secondNum;
@@ -596,8 +627,8 @@ char* MainOperationClass::calculateFormula(const char* formula, bool& isThereErr
 		}
 		else if (isThereSignInArray(operations, operationCounter, '+', index))
 		{
-			double firstNum = checkOperandsValidity(nums[index], isThereError);
-			double secondNum = checkOperandsValidity(nums[index + 1], isThereError);
+			double firstNum = checkOperandsValidity(nums[index], isThereError, rowF, colF);
+			double secondNum = checkOperandsValidity(nums[index + 1], isThereError, rowF, colF);
 
 			if (isThereError) return nullptr;
 			result = firstNum + secondNum;
@@ -613,50 +644,31 @@ char* MainOperationClass::calculateFormula(const char* formula, bool& isThereErr
 
 }
 
-void MainOperationClass::evaluateFormulas(int** formulaIndexArray, unsigned int formulaCount, DataType*** table)
+DataType* MainOperationClass::evaluateFormulas(DataType* formula, unsigned int rowF, unsigned int colF)
 {
 	bool isThereError = false;
+	char formulaArray[50];
 
-	for (int i = 0; i < formulaCount; i++)
+	char* formulaP = calculateFormula(removeEqualSign(formula->getFormula()), isThereError, rowF, colF);
+
+	if (formulaP)
+		strcpy_s(formulaArray, strlen(formulaP) + 1, formulaP);
+
+	if (isThereError)
 	{
-		bool isThereError = false;
-		char formula[50];
-		char* formulaP = calculateFormula(table[formulaIndexArray[i][0]][formulaIndexArray[i][1]]->getString(), isThereError);
-
-		if (formulaP)
-			strcpy_s(formula, strlen(formulaP) + 1, formulaP);
-
-		if (isThereError)
+		return new (nothrow) String("ERROR");
+	}
+	else
+	{
+		if (isDoubleNumValid(formulaArray))
 		{
-			table[formulaIndexArray[i][0]][formulaIndexArray[i][1]] = new (nothrow) String("ERROR");
+			return new (nothrow) Double(convertFromStringToDouble(formulaArray));
 		}
-		else
+		else if (isIntNumValid(formulaArray))
 		{
-			if (isDoubleNumValid(formula))
-			{
-				table[formulaIndexArray[i][0]][formulaIndexArray[i][1]] = new (nothrow) Double(convertFromStringToDouble(formula));
-				if (!table[formulaIndexArray[i][0]][formulaIndexArray[i][1]]) throw "Memory problem!";
-			}
-			else if (isIntNumValid(formula))
-			{
-				table[formulaIndexArray[i][0]][formulaIndexArray[i][1]] = new (nothrow) Int(convertFromStringToInt(formula));
-				if (!table[formulaIndexArray[i][0]][formulaIndexArray[i][1]]) throw "Memory problem!";
-			}
+			return new (nothrow) Int(convertFromStringToInt(formulaArray));
 		}
 	}
-}
-
-void MainOperationClass::removeEqualSign(char formula[])
-{
-	char bufferArray[50];
-
-	for (int i = 1; i < strlen(formula); i++)
-	{
-		bufferArray[i - 1] = formula[i];
-	}
-	bufferArray[strlen(formula) - 1] = '\0';
-
-	strcpy_s(formula, strlen(bufferArray) + 1, bufferArray);
 }
 
 //Help functions
@@ -751,14 +763,33 @@ void MainOperationClass::checkSizeOfTable(unsigned int row, unsigned int col)
 		Table::tableInstance->resizeTable(Table::tableInstance->getRowCount(), col);
 }
 
-unsigned int MainOperationClass::getLengthOfCell(DataType* cell)
+unsigned int MainOperationClass::getLengthOfCell(DataType* cell, unsigned int rowF, unsigned int colF)
 {
+	//Find the length of the evaluation of the formula
 	if (typeid(*cell) == typeid(Int))
 		return findNumIntLength(cell->getInt());
 	else if (typeid(*cell) == typeid(Double))
 		return findNumDoubleLength(cell->getDouble());
 	else if (typeid(*cell) == typeid(String))
 		return strlen(cell->getString());
+	else if (typeid(*cell) == typeid(Formula))
+	{
+		DataType* formula = evaluateFormulas(cell, rowF, colF);
+		return getLengthOfCell(formula, rowF, colF);
+	}
+}
+
+unsigned int MainOperationClass::getLengthOfCellFormula(DataType* cell)
+{
+	//Find the length of the formula
+	if (typeid(*cell) == typeid(Int))
+		return findNumIntLength(cell->getInt());
+	else if (typeid(*cell) == typeid(Double))
+		return findNumDoubleLength(cell->getDouble());
+	else if (typeid(*cell) == typeid(String))
+		return strlen(cell->getString());
+	else if (typeid(*cell) == typeid(Formula))
+		return strlen(cell->getFormula());
 }
 
 void MainOperationClass::placeSpace(unsigned int quantity)
@@ -886,19 +917,6 @@ void MainOperationClass::readTableFromFile(fstream& fileR)
 
 	DataType*** table = allocateBufferTable(rowCount, colCount);
 
-	// Allocate array to store the coordinates of the formulas,
-	// so they can be evaluated after the initialization of the whole table
-	int** formulaIndexArray = new (nothrow) int* [rowCount];
-	if (!formulaIndexArray) throw "Memory problem!";
-
-	unsigned int formulaCount = 0;
-
-	for (int i = 0; i < rowCount; i++)
-	{
-		formulaIndexArray[i] = new (nothrow) int[2];
-		if (!formulaIndexArray[i]) throw "Memory problem!";
-	}
-
 	for (int i = 0; i < rowCount; i++)
 	{
 		//Read the end line after the size of the table
@@ -945,17 +963,9 @@ void MainOperationClass::readTableFromFile(fstream& fileR)
 			}
 			else if (cells[j][0] == '=')
 			{
-				char formulaWithoutEqualSign[50];
-				strcpy_s(formulaWithoutEqualSign, cells[j]);
 
-				removeEqualSign(formulaWithoutEqualSign);
-
-				table[i][j] = new (nothrow) String(formulaWithoutEqualSign);
+				table[i][j] = new (nothrow) Formula(cells[j]);
 				if (!table[i][j]) throw "Memory problem!";
-
-				formulaIndexArray[formulaCount][0] = i;
-				formulaIndexArray[formulaCount][1] = j;
-				formulaCount++;
 			}
 			else
 			{
@@ -968,15 +978,11 @@ void MainOperationClass::readTableFromFile(fstream& fileR)
 
 			}
 		}
-
 	}
 
 	//Initialize the table
 	Table::tableInstance = new (nothrow) Table(table, rowCount, colCount);
 	if (!Table::tableInstance) throw "Memory problem!";
-
-	//Evaluate the formulas
-	evaluateFormulas(formulaIndexArray, formulaCount, Table::tableInstance->getTable());
 }
 
 void MainOperationClass::readFromFile(char* command, bool& isOpenSuccessful)
@@ -1022,8 +1028,8 @@ void MainOperationClass::writeToFile(ofstream& fileW)
 
 		for (int j = 0; j < Table::tableInstance->getRowCount(); j++)
 		{
-			if (maxLength < ((typeid(*Table::tableInstance->getTable()[j][i]) == typeid(String) && strcmp(Table::tableInstance->getTable()[j][i]->getString(), "")) ? getLengthOfCell(Table::tableInstance->getTable()[j][i]) + 2 : getLengthOfCell(Table::tableInstance->getTable()[j][i])))
-				maxLength = ((typeid(*Table::tableInstance->getTable()[j][i]) == typeid(String) && strcmp(Table::tableInstance->getTable()[j][i]->getString(), "")) ? getLengthOfCell(Table::tableInstance->getTable()[j][i]) + 2 : getLengthOfCell(Table::tableInstance->getTable()[j][i]));
+			if (maxLength < ((typeid(*Table::tableInstance->getTable()[j][i]) == typeid(String) && strcmp(Table::tableInstance->getTable()[j][i]->getString(), "")) ? getLengthOfCellFormula(Table::tableInstance->getTable()[j][i]) + 2 : getLengthOfCellFormula(Table::tableInstance->getTable()[j][i])))
+				maxLength = ((typeid(*Table::tableInstance->getTable()[j][i]) == typeid(String) && strcmp(Table::tableInstance->getTable()[j][i]->getString(), "")) ? getLengthOfCellFormula(Table::tableInstance->getTable()[j][i]) + 2 : getLengthOfCellFormula(Table::tableInstance->getTable()[j][i]));
 		}
 
 		elementLengthArray[i] = maxLength;
@@ -1038,9 +1044,9 @@ void MainOperationClass::writeToFile(ofstream& fileW)
 				fileW << " ";
 
 			else if ((typeid(*Table::tableInstance->getTable()[i][j]) == typeid(String) && strcmp(Table::tableInstance->getTable()[i][j]->getString(), "")))
-				placeSpaceInFile(fileW, elementLengthArray[j] - getLengthOfCell(Table::tableInstance->getTable()[i][j]) - 2);
+				placeSpaceInFile(fileW, elementLengthArray[j] - getLengthOfCellFormula(Table::tableInstance->getTable()[i][j]) - 2);
 			else
-				placeSpaceInFile(fileW, elementLengthArray[j] - getLengthOfCell(Table::tableInstance->getTable()[i][j]));
+				placeSpaceInFile(fileW, elementLengthArray[j] - getLengthOfCellFormula(Table::tableInstance->getTable()[i][j]));
 
 			Table::tableInstance->printValueInFile(Table::tableInstance->getTable()[i][j], fileW);
 			fileW << ",";
@@ -1082,24 +1088,10 @@ void MainOperationClass::editTable(unsigned int row, unsigned int col, char cell
 	else if (cellInfo[0] == '=')
 	{
 		checkSizeOfTable(row, col);
-		char formulaWithoutEqualSign[50];
-		strcpy_s(formulaWithoutEqualSign, cellInfo);
-
-		removeEqualSign(formulaWithoutEqualSign);
 
 		delete[] Table::tableInstance->getTable()[row - 1][col - 1];
-		Table::tableInstance->getTable()[row - 1][col - 1] = new (std::nothrow) String(formulaWithoutEqualSign);
+		Table::tableInstance->getTable()[row - 1][col - 1] = new (std::nothrow) Formula(cellInfo);
 		if (!Table::tableInstance->getTable()[row - 1][col - 1]) throw "Memory problem!";
-
-		int** formulaIndexArray = new (nothrow) int* [1];
-		if (!formulaIndexArray) throw "Memory problem!";
-
-		formulaIndexArray[0] = new (nothrow) int[2];
-		if (!formulaIndexArray[0]) throw "Memory problem!";
-
-		formulaIndexArray[0][0] = row - 1;
-		formulaIndexArray[0][1] = col - 1;
-		evaluateFormulas(formulaIndexArray, 1, Table::tableInstance->getTable());
 	}
 	else
 	{
@@ -1130,8 +1122,8 @@ void MainOperationClass::printTable()
 
 		for (int j = 0; j < Table::tableInstance->getRowCount(); j++)
 		{
-			if (maxLength < getLengthOfCell(Table::tableInstance->getTable()[j][i]))
-				maxLength = getLengthOfCell(Table::tableInstance->getTable()[j][i]);
+			if (maxLength < getLengthOfCell(Table::tableInstance->getTable()[j][i], j, i))
+				maxLength = getLengthOfCell(Table::tableInstance->getTable()[j][i], j, i);
 		}
 
 		elementLengthArray[i] = maxLength;
@@ -1145,9 +1137,16 @@ void MainOperationClass::printTable()
 			if (elementLengthArray[j] == 0)
 				cout << " ";
 			else
-				placeSpace(elementLengthArray[j] - getLengthOfCell(Table::tableInstance->getTable()[i][j]));
+				placeSpace(elementLengthArray[j] - getLengthOfCell(Table::tableInstance->getTable()[i][j], i, j));
 
+			if(typeid(*Table::tableInstance->getTable()[i][j]) != typeid(Formula))
 			Table::tableInstance->printValue(Table::tableInstance->getTable()[i][j]);
+			else
+			{
+				DataType* formula = evaluateFormulas(Table::tableInstance->getTable()[i][j], i, j);
+				Table::tableInstance->printValue(formula);
+			}
+
 			cout << "|";
 		}
 		cout << endl;
@@ -1208,6 +1207,8 @@ void MainOperationClass::closeTable()
 	}
 
 	cout << "Successfully closed " << getFileName(Table::currentFileName) << endl;
+	deallocateStaticVars();
+	Table::isPassedThroughCloseFunc = true;
 	Table::isThereUnsavedChanges = false;
 	Table::isTableOpened = false;
 }
@@ -1263,7 +1264,10 @@ void MainOperationClass::executeCommand(char command[])
 		if (Table::isThereUnsavedChanges)
 			cout << "You have an opened file with unsaved changes, please select close or save first." << endl;
 
-		deallocateStaticVars();
+		else if(!Table::isPassedThroughCloseFunc)
+			deallocateStaticVars();
+
+		Table::isPassedThroughCloseFunc = false;
 		return;
 	}
 

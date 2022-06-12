@@ -1,10 +1,10 @@
 #ifndef TABLE_H
 #define TABLE_H
-#include <fstream>
 #include "DataType.h"
 #include "Int.h"
 #include "Double.h"
 #include "String.h"
+#include "Formula.h"
 
 class Table
 {
@@ -18,10 +18,12 @@ private:
 	void deallocate();
 
 public:
+	//Static vars
 	static Table* tableInstance;
 	static bool isTableOpened;
 	static char* currentFileName;
 	static bool isThereUnsavedChanges;
+	static bool isPassedThroughCloseFunc;
 
 	//Constructors
 	Table() : table(nullptr), rowCount(0), colCount(0) {}

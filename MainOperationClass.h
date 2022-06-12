@@ -1,11 +1,5 @@
 #ifndef _MAINOPERATIONCLASS
 #define _MAINOPERATIONCLASS
-#include <iostream>
-#include <fstream>
-#include "DataType.h"
-#include "Int.h"
-#include "Double.h"
-#include "String.h"
 #include "Table.h"
 
 using namespace std;
@@ -42,7 +36,7 @@ private:
 
 	void removeWhiteSpaces(char initialCell[]);
 
-	void removeEqualSign(char formula[]);
+	char* removeEqualSign(const char* formula);
 
 	//Check validity functions
 	bool isCharNum(char ch);
@@ -52,7 +46,7 @@ private:
 	bool isIntNumValid(const char* stringNum);
 
 	//Calculation of Formulas functions
-	DataType* getCellValue(const char* cell);
+	DataType* getCellValue(const char* cell, unsigned int rowF, unsigned int colF);
 
 	bool isCharSign(char ch);
 
@@ -62,11 +56,11 @@ private:
 
 	void refactorNumsArray(char nums[][15], unsigned length, unsigned int index, double result);
 
-	double checkOperandsValidity(char num[], bool& isThereError);
+	double checkOperandsValidity(char num[], bool& isThereError, unsigned int rowF, unsigned int colF);
 
-	char* calculateFormula(const char* formula, bool& isThereError);
+	char* calculateFormula(const char* formula, bool& isThereError, unsigned int rowF, unsigned int colF);
 
-	void evaluateFormulas(int** formulaIndexArray, unsigned int formulaCount, DataType*** table);
+	DataType* evaluateFormulas(DataType* formula, unsigned int rowF, unsigned int colF);
 
 	//Help functions
 	bool isThereOnlySpaces(char array[]);
@@ -75,7 +69,9 @@ private:
 
 	void checkSizeOfTable(unsigned int row, unsigned int col);
 
-	unsigned int getLengthOfCell(DataType* cell);
+	unsigned int getLengthOfCell(DataType* cell, unsigned int rowF, unsigned int colF);
+
+	unsigned int getLengthOfCellFormula(DataType* cell);
 
 	void placeSpace(unsigned int quantity);
 

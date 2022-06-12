@@ -7,6 +7,7 @@ Table* Table::tableInstance = nullptr;
 bool Table::isTableOpened = false;
 bool Table::isThereUnsavedChanges = false;
 char* Table::currentFileName = nullptr;
+bool Table::isPassedThroughCloseFunc = false;
 
 int main()
 {

@@ -17,3 +17,9 @@ char* DataType::getString() const
 	throw "Unknown data type!";
 	return nullptr;
 }
+
+char* DataType::getFormula() const
+{
+	throw "Unknown data type!";
+	return nullptr;
+}
