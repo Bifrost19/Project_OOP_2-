@@ -251,7 +251,7 @@ char* MainOperationClass::removeQuotationMarks(const char* string)
 
 void MainOperationClass::removeWhiteSpaces(char initialCell[])
 {
-	char bufferCell[50];
+	char bufferCell[100];
 	int removedSpacesCount = 0;
 	bool isThereAnyOtherSymbolsPassed = false;
 
@@ -777,6 +777,68 @@ void MainOperationClass::placeSpaceInFile(ofstream& fileW, unsigned int quantity
 	}
 }
 
+char* MainOperationClass::getFileName(char* filePath)
+{
+	_strrev(filePath);
+	char fileName[50];
+	unsigned int fileNameLength = 0;
+
+	for (int i = 0; i < strlen(filePath); i++)
+	{
+		if (filePath[i] == '\\')
+		{
+			fileName[i] = '\0';
+			break;
+		}
+		fileName[i] = filePath[i];
+		fileNameLength++;
+	}
+	_strrev(fileName);
+	fileName[fileNameLength] = '\0';
+
+	char* fileNameP = new (nothrow) char[fileNameLength + 1];
+	if (!fileNameP) throw "Memory problem!";
+	strcpy_s(fileNameP, fileNameLength + 1, fileName);
+
+	_strrev(filePath);
+
+	return fileNameP;
+}
+
+char* MainOperationClass::separateFileNameFromCommand(char* string, const char* command, unsigned int& strLength)
+{
+	char fileName[100];
+	unsigned int commandLength = strlen(command);
+
+	for (int i = commandLength; i < strlen(string); i++)
+	{
+		fileName[i - commandLength] = string[i];
+		if(i == strlen(string) - 1) fileName[i - commandLength + 1] = '\0';
+	}
+
+	removeWhiteSpaces(fileName);
+
+	strLength = strlen(fileName);
+
+	char* fileNameP = new (nothrow) char[strLength + 1];
+	if (!fileNameP) throw "Memory problem!";
+	strcpy_s(fileNameP, strLength + 1, fileName);
+
+	return fileNameP;
+}
+
+bool MainOperationClass::isThereCommandInString(char* string, const char* command)
+{
+	if (strlen(string) <= strlen(command)) return false;
+
+	for (int i = 0; i < strlen(command); i++)
+	{
+		if (string[i] != command[i]) return false;
+	}
+
+	return true;
+}
+
 //Write and read to file
 void MainOperationClass::readTableFromFile(fstream& fileR)
 {
@@ -881,35 +943,31 @@ void MainOperationClass::readTableFromFile(fstream& fileR)
 	evaluateFormulas(formulaIndexArray, formulaCount, Table::tableInstance->getTable());
 }
 
-void MainOperationClass::readFromFile()
+void MainOperationClass::readFromFile(char* command, bool& isOpenSuccessful)
 {
 	fstream fileR;
-	do
+
+	char fileName[100];
+	unsigned int strLength = 0;
+	strcpy_s(fileName, strLength + 1, separateFileNameFromCommand(command, "open", strLength));
+
+	fileR.open(fileName, ios::in);
+	if (!fileR.is_open())
 	{
-		char fileName[50];
-		cout << "Enter the name of the file you want to read from: ";
-		cin.getline(fileName, 50);
+		cout << "A file with such name can't be opened!" << endl;
+		isOpenSuccessful = false;
+		return;
+	}
+	else
+	{
+		Table::currentFileName = new (nothrow) char[strlen(fileName) + 1];
+		if (!Table::currentFileName) throw "Memory problem!";
 
-		strcat_s(fileName, ".txt");
-
-		fileR.open(fileName, ios::in);
-		if (!fileR.is_open())
-		{
-			cout << "A file with such name can't be opened!" << endl;
-		}
-		else
-		{
-			Table::currentFileName = new (nothrow) char[strlen(fileName) + 1];
-			if (!Table::currentFileName) throw "Memory problem!";
-
-			strcpy_s(Table::currentFileName, strlen(fileName) + 1, fileName);
-		}
-
-	} while (!fileR.is_open());
+		strcpy_s(Table::currentFileName, strlen(fileName) + 1, fileName);
+	}
 
 	readTableFromFile(fileR);
 	Table::isTableOpened = true;
-
 	fileR.close();
 }
 
@@ -959,6 +1017,12 @@ void MainOperationClass::writeToFile(ofstream& fileW)
 //Main functionalities
 void MainOperationClass::editTable()
 {
+	if (!Table::isTableOpened)
+	{
+		cout << "There isn't any opened table to edit!" << endl;
+		return;
+	}
+
 	cout << "...../Editing mode/......" << endl;
 
 	int row;
@@ -1100,10 +1164,10 @@ void MainOperationClass::saveTable()
 	fileW.close();
 
 	Table::isThereUnsavedChanges = false;
-	cout << "The table was saved successfully!" << endl;
+	cout << "Successfully saved " << getFileName(Table::currentFileName) << endl;
 }
 
-void MainOperationClass::saveAsTable()
+void MainOperationClass::saveAsTable(char* command)
 {
 	if (!Table::isTableOpened)
 	{
@@ -1111,11 +1175,9 @@ void MainOperationClass::saveAsTable()
 		return;
 	}
 
-	char fileName[50];
-	cout << "Enter the name of the file you want to save the table: ";
-	cin.getline(fileName, 50);
-
-	strcat_s(fileName, ".txt");
+	char fileName[100];
+	unsigned int strLength = 0;
+	strcpy_s(fileName, strLength + 1, separateFileNameFromCommand(command, "saveas", strLength));
 
 	ofstream fileW(fileName);
 
@@ -1126,7 +1188,7 @@ void MainOperationClass::saveAsTable()
 	fileW.close();
 
 	Table::isThereUnsavedChanges = false;
-	cout << "The table was saved successfully!" << endl;
+	cout << "Successfully saved " << getFileName(fileName) << endl;
 }
 
 void MainOperationClass::closeTable()
@@ -1136,53 +1198,44 @@ void MainOperationClass::closeTable()
 		cout << "There isn't any opened table to close!" << endl;
 		return;
 	}
-	if (Table::isThereUnsavedChanges == true)
-	{
-		cout << "Do you want to save the changes? Y/N" << endl;
 
-		char choice;
-
-		do
-		{
-			cin >> choice;
-		} while (choice != 'N' && choice != 'n' && choice != 'Y' && choice != 'y');
-
-		if (choice == 'Y' || choice == 'y')
-		{
-			saveTable();
-		}
-
-		cin.ignore();
-	}
-
-	cout << "The table was closed successfully!" << endl;
+	cout << "Successfully closed " << getFileName(Table::currentFileName) << endl;
+	Table::isThereUnsavedChanges = false;
 	Table::isTableOpened = false;
-	deallocateStaticVars();
 }
 
-void MainOperationClass::openTable()
+void MainOperationClass::openTable(char* command)
 {
+	bool isOpenSuccessful = true;
+
 	if (Table::isTableOpened)
 	{
 		cout << "There is opened table already!" << endl;
 		return;
 	}
 
-	readFromFile();
-	cout << "The table was opened successfully!" << endl;
+	readFromFile(command, isOpenSuccessful);
+	if(isOpenSuccessful) cout << "Successfully opened " << getFileName(Table::currentFileName) << endl;
 }
 
 void MainOperationClass::help()
 {
-	cout << "Available commands: open / close / help / edit / print /"
-		<< " save / saveas / clear / exit" << endl;
+	cout << "open <file>        opens <file>" << endl
+		<< "close              closes currently opened file" << endl
+		<< "save               saves the currently open file" << endl
+		<< "saveas <file>      saves the currently open file in <file>" << endl
+		<< "edit               makes changes to the table" << endl
+		<< "print              prints the table on the screen" << endl
+		<< "clear              clears the console prompt" << endl
+		<< "help               prints this information" << endl
+		<< "exit               exists the program" << endl;
 }
 
 //Execute command function
 void MainOperationClass::executeCommand(char command[])
 {
-	if (!strcmp(command, "open"))
-		openTable();
+	if (isThereCommandInString(command, "open"))
+		openTable(command);
 	else if (!strcmp(command, "close"))
 		closeTable();
 	else if (!strcmp(command, "help"))
@@ -1193,13 +1246,16 @@ void MainOperationClass::executeCommand(char command[])
 		printTable();
 	else if (!strcmp(command, "save"))
 		saveTable();
-	else if (!strcmp(command, "saveas"))
-		saveAsTable();
+	else if (isThereCommandInString(command, "saveas"))
+		saveAsTable(command);
 	else if (!strcmp(command, "clear"))
 		system("cls");
 	else if (!strcmp(command, "exit"))
 	{
-		cout << ((Table::isTableOpened) ? "You must close the table first!" : "");
+		if (Table::isThereUnsavedChanges)
+			cout << "You have an opened file with unsaved changes, please select close or save first." << endl;
+
+		deallocateStaticVars();
 		return;
 	}
 

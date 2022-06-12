@@ -10,9 +10,6 @@
 
 using namespace std;
 
-//Static vars
-
-
 class MainOperationClass //Singleton class
 {
 private:
@@ -84,10 +81,16 @@ private:
 
 	void placeSpaceInFile(ofstream& fileW, unsigned int quantity);
 
+	char* getFileName(char* filePath);
+
+	char* separateFileNameFromCommand(char* string, const char* command, unsigned int& strLength);
+
+	bool isThereCommandInString(char* string, const char* command);
+
 	//Write and read to file
 	void readTableFromFile(fstream& fileR);
 
-	void readFromFile();
+	void readFromFile(char* command, bool& isOpenSuccessful);
 
 	void writeToFile(ofstream& fileW);
 
@@ -98,11 +101,11 @@ private:
 
 	void saveTable();
 
-	void saveAsTable();
+	void saveAsTable(char* command);
 
 	void closeTable();
 
-	void openTable();
+	void openTable(char* command);
 
 	void help();
 
@@ -112,6 +115,11 @@ public:
 	MainOperationClass(const MainOperationClass& mOC) = delete;
 
 	MainOperationClass& operator= (const MainOperationClass& mOC) = delete;
+
+	//Move constructor & move initialization operator
+	MainOperationClass(MainOperationClass&& mOC) = delete;
+
+	MainOperationClass& operator= (MainOperationClass&& mOC) = delete;
 
 	// Get instance function
 	static MainOperationClass& getInstance()

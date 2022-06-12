@@ -2,6 +2,7 @@
 
 using namespace std;
 
+//Static vars
 Table* Table::tableInstance = nullptr;
 bool Table::isTableOpened = false;
 bool Table::isThereUnsavedChanges = false;
@@ -16,8 +17,10 @@ int main()
 		cout << ">";
 		cin.getline(command, 100);
 		MainOperationClass::getInstance().executeCommand(command);
-	} while (strcmp(command, "exit") || Table::isTableOpened);
+	} while (strcmp(command, "exit") || Table::isThereUnsavedChanges);
 
-	// Static vars are deallocated in close function
+	cout << "Exiting program..." << endl;
+
+	// Static vars are deallocated in execute command function
 	return 0;
 }
