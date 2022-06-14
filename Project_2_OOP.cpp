@@ -1,5 +1,10 @@
 #include "MainOperationClass.h"
 
+//Testing
+#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include "doctest.h"
+#include "Tests.h"
+
 using namespace std;
 
 //Static vars
@@ -9,6 +14,7 @@ bool Table::isThereUnsavedChanges = false;
 char* Table::currentFileName = nullptr;
 bool Table::isPassedThroughCloseFunc = false;
 
+//Comment the main function before testing
 int main()
 {
 	char command[100];

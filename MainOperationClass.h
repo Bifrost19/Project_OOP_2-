@@ -92,21 +92,6 @@ private:
 
 	void writeToFile(ofstream& fileW);
 
-	//Main functionalities
-	void editTable(unsigned int row, unsigned int col, char cellInfo[]);
-
-	void printTable();
-
-	void saveTable();
-
-	void saveAsTable(char* command);
-
-	void closeTable();
-
-	void openTable(char* command);
-
-	void help();
-
 public:
 
 	//Copy constructor & initialization operator
@@ -128,6 +113,22 @@ public:
 
 	//Execute command function
 	void executeCommand(char command[]);
+
+	//Main functionalities
+	//Public just for testing
+	void editTable(unsigned int row, unsigned int col, char cellInfo[]);
+
+	void printTable();
+
+	void saveTable();
+
+	void saveAsTable(char* command);
+
+	void closeTable();
+
+	void openTable(char* command);
+
+	void help();
 };
 #endif
 

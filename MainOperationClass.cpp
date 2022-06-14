@@ -1056,6 +1056,41 @@ void MainOperationClass::writeToFile(ofstream& fileW)
 	delete[] elementLengthArray;
 }
 
+//Execute command function
+void MainOperationClass::executeCommand(char command[])
+{
+	if (isThereCommandInString(command, "open"))
+		openTable(command);
+	else if (!strcmp(command, "close"))
+		closeTable();
+	else if (!strcmp(command, "help"))
+		help();
+	else if (!strcmp(command, "edit"))
+		verifyDataForEditFunc();
+	else if (!strcmp(command, "print"))
+		printTable();
+	else if (!strcmp(command, "save"))
+		saveTable();
+	else if (isThereCommandInString(command, "saveas"))
+		saveAsTable(command);
+	else if (!strcmp(command, "clear"))
+		system("cls");
+	else if (!strcmp(command, "exit"))
+	{
+		if (Table::isThereUnsavedChanges)
+			cout << "You have an opened file with unsaved changes, please select close or save first." << endl;
+
+		else if(!Table::isPassedThroughCloseFunc)
+			deallocateStaticVars();
+
+		Table::isPassedThroughCloseFunc = false;
+		return;
+	}
+
+	else
+		cout << "Invalid command!" << endl;
+}
+
 //Main functionalities
 void MainOperationClass::editTable(unsigned int row, unsigned int col, char cellInfo[])
 {
@@ -1139,8 +1174,8 @@ void MainOperationClass::printTable()
 			else
 				placeSpace(elementLengthArray[j] - getLengthOfCell(Table::tableInstance->getTable()[i][j], i, j));
 
-			if(typeid(*Table::tableInstance->getTable()[i][j]) != typeid(Formula))
-			Table::tableInstance->printValue(Table::tableInstance->getTable()[i][j]);
+			if (typeid(*Table::tableInstance->getTable()[i][j]) != typeid(Formula))
+				Table::tableInstance->printValue(Table::tableInstance->getTable()[i][j]);
 			else
 			{
 				DataType* formula = evaluateFormulas(Table::tableInstance->getTable()[i][j], i, j);
@@ -1224,7 +1259,7 @@ void MainOperationClass::openTable(char* command)
 	}
 
 	readFromFile(command, isOpenSuccessful);
-	if(isOpenSuccessful) cout << "Successfully opened " << getFileName(Table::currentFileName) << endl;
+	if (isOpenSuccessful) cout << "Successfully opened " << getFileName(Table::currentFileName) << endl;
 }
 
 void MainOperationClass::help()
@@ -1238,39 +1273,4 @@ void MainOperationClass::help()
 		<< "clear              clears the console prompt" << endl
 		<< "help               prints this information" << endl
 		<< "exit               exists the program" << endl;
-}
-
-//Execute command function
-void MainOperationClass::executeCommand(char command[])
-{
-	if (isThereCommandInString(command, "open"))
-		openTable(command);
-	else if (!strcmp(command, "close"))
-		closeTable();
-	else if (!strcmp(command, "help"))
-		help();
-	else if (!strcmp(command, "edit"))
-		verifyDataForEditFunc();
-	else if (!strcmp(command, "print"))
-		printTable();
-	else if (!strcmp(command, "save"))
-		saveTable();
-	else if (isThereCommandInString(command, "saveas"))
-		saveAsTable(command);
-	else if (!strcmp(command, "clear"))
-		system("cls");
-	else if (!strcmp(command, "exit"))
-	{
-		if (Table::isThereUnsavedChanges)
-			cout << "You have an opened file with unsaved changes, please select close or save first." << endl;
-
-		else if(!Table::isPassedThroughCloseFunc)
-			deallocateStaticVars();
-
-		Table::isPassedThroughCloseFunc = false;
-		return;
-	}
-
-	else
-		cout << "Invalid command!" << endl;
 }
