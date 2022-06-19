@@ -429,7 +429,7 @@ DataType* MainOperationClass::getCellValue(const char* cell, unsigned int rowF, 
 	num[strlen(cell) - helperIndex] = '\0';
 	col = convertFromStringToInt(num);
 
-	//Prevent from infinite recursion
+	//Prevent from endless recursion
 	if (row - 1 == rowF && col - 1 == colF)
 		return nullptr;
 
@@ -439,8 +439,19 @@ DataType* MainOperationClass::getCellValue(const char* cell, unsigned int rowF, 
 			&& !isIntNumValid(Table::tableInstance->getTable()[row - 1][col - 1]->getString())))
 		return new Int(0);
 	else if (typeid(*(Table::tableInstance->getTable()[row - 1][col - 1])) == typeid(Formula))
-		return evaluateFormulas(Table::tableInstance->getTable()[row - 1][col - 1], rowF, colF);
+	{
+		try
+		{
+			if (!strcmp((evaluateFormulas(Table::tableInstance->getTable()[row - 1][col - 1], row - 1, col - 1))->getString(), "ERROR"))
+			{
+				return new Int(0);
+			}
+		}
+		catch (...) {}
 
+		return evaluateFormulas(Table::tableInstance->getTable()[row - 1][col - 1], row - 1, col - 1);
+	}
+		
 	return Table::tableInstance->getTable()[row - 1][col - 1]->clone();
 }
 
@@ -512,12 +523,12 @@ double MainOperationClass::checkOperandsValidity(char num[], bool& isThereError,
 		try
 		{
 			cellInfo = getCellValue(num, rowF, colF);
-			if(cellInfo)
-			cellInfo = getCellValue(num, rowF, colF)->clone();
+			if (cellInfo)
+				cellInfo = getCellValue(num, rowF, colF)->clone();
 		}
 		catch (...)
 		{
-			cout << "Invalid format of formula!" << endl;
+			// An error occurs, probably invalid format of the formula
 			isThereError = true;
 			return 0;
 		}
@@ -844,7 +855,7 @@ char* MainOperationClass::separateFileNameFromCommand(char* string, const char* 
 	for (int i = commandLength; i < strlen(string); i++)
 	{
 		fileName[i - commandLength] = string[i];
-		if(i == strlen(string) - 1) fileName[i - commandLength + 1] = '\0';
+		if (i == strlen(string) - 1) fileName[i - commandLength + 1] = '\0';
 	}
 
 	removeWhiteSpaces(fileName);
@@ -1080,7 +1091,7 @@ void MainOperationClass::executeCommand(char command[])
 		if (Table::isThereUnsavedChanges)
 			cout << "You have an opened file with unsaved changes, please select close or save first." << endl;
 
-		else if(!Table::isPassedThroughCloseFunc)
+		else if (!Table::isPassedThroughCloseFunc)
 			deallocateStaticVars();
 
 		Table::isPassedThroughCloseFunc = false;
