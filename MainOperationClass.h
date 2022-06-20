@@ -46,7 +46,7 @@ private:
 	bool isIntNumValid(const char* stringNum);
 
 	//Calculation of Formulas functions
-	DataType* getCellValue(const char* cell, unsigned int rowF, unsigned int colF);
+	DataType* getCellValue(const char* cell, unsigned int rowF, unsigned int colF, int indexArr[][2], unsigned int indexArrSize);
 
 	bool isCharSign(char ch);
 
@@ -56,11 +56,11 @@ private:
 
 	void refactorNumsArray(char nums[][15], unsigned length, unsigned int index, double result);
 
-	double checkOperandsValidity(char num[], bool& isThereError, unsigned int rowF, unsigned int colF);
+	double checkOperandsValidity(char num[], bool& isThereError, unsigned int rowF, unsigned int colF, int indexArr[][2], unsigned int indexArrSize, bool& isThereInvalidFormatOfFormula);
 
-	char* calculateFormula(const char* formula, bool& isThereError, unsigned int rowF, unsigned int colF);
+	char* calculateFormula(char* formula, bool& isThereError, unsigned int rowF, unsigned int colF, int indexArr[][2], unsigned int indexArrSize, bool& isThereInvalidFormatOfFormula);
 
-	DataType* evaluateFormulas(DataType* formula, unsigned int rowF, unsigned int colF);
+	DataType* evaluateFormulas(DataType*& formula, unsigned int rowF, unsigned int colF, int indexArr[][2], unsigned int indexArrSize);
 
 	//Help functions
 	bool isThereOnlySpaces(char array[]);
@@ -69,7 +69,7 @@ private:
 
 	void checkSizeOfTable(unsigned int row, unsigned int col);
 
-	unsigned int getLengthOfCell(DataType* cell, unsigned int rowF, unsigned int colF);
+	unsigned int getLengthOfCell(DataType* cell, unsigned int rowF, unsigned int colF, int indexArr[][2], unsigned int indexArrSize);
 
 	unsigned int getLengthOfCellFormula(DataType* cell);
 
@@ -131,4 +131,3 @@ public:
 	void help();
 };
 #endif
-

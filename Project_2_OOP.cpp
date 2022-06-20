@@ -1,9 +1,9 @@
 #include "MainOperationClass.h"
 
-//Testing
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "doctest.h"
-#include "Tests.h"
+//Testing //Uncomment before testing with doctest
+//#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+//#include "doctest.h"
+//#include "Tests.h"
 
 using namespace std;
 
@@ -14,7 +14,7 @@ bool Table::isThereUnsavedChanges = false;
 char* Table::currentFileName = nullptr;
 bool Table::isPassedThroughCloseFunc = false;
 
-//Comment the main function before testing
+//Comment the main function before testing with doctest
 int main()
 {
 	char command[100];

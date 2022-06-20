@@ -381,7 +381,7 @@ bool MainOperationClass::isIntNumValid(const char* stringNum)
 }
 
 //Calculation of Formulas functions
-DataType* MainOperationClass::getCellValue(const char* cell, unsigned int rowF, unsigned int colF)
+DataType* MainOperationClass::getCellValue(const char* cell, unsigned int rowF, unsigned int colF, int indexArr[][2], unsigned int indexArrSize)
 {
 	unsigned int row;
 	unsigned int col;
@@ -431,7 +431,13 @@ DataType* MainOperationClass::getCellValue(const char* cell, unsigned int rowF, 
 
 	//Prevent from endless recursion
 	if (row - 1 == rowF && col - 1 == colF)
-		return nullptr;
+		return new Int(0);
+
+	for (int i = 0; i < indexArrSize; i++)
+	{
+		if (row - 1 == indexArr[i][0] && col - 1 == indexArr[i][1])
+			return new Int(0);
+	}
 
 	if (row <= 0 || col <= 0 || row > Table::tableInstance->getRowCount() || col > Table::tableInstance->getColCount()
 		|| (typeid(*(Table::tableInstance->getTable()[row - 1][col - 1])) == typeid(String)
@@ -442,16 +448,22 @@ DataType* MainOperationClass::getCellValue(const char* cell, unsigned int rowF, 
 	{
 		try
 		{
-			if (!strcmp((evaluateFormulas(Table::tableInstance->getTable()[row - 1][col - 1], row - 1, col - 1))->getString(), "ERROR"))
+			//Add new not allowed indexes
+			indexArr[indexArrSize][0] = rowF;
+			indexArr[indexArrSize][1] = colF;
+			indexArrSize++;
+
+			if (evaluateFormulas(Table::tableInstance->getTable()[row - 1][col - 1], row - 1, col - 1, indexArr, indexArrSize)->getInt() == 0
+				|| !strcmp((evaluateFormulas(Table::tableInstance->getTable()[row - 1][col - 1], row - 1, col - 1, indexArr, indexArrSize))->getString(), "ERROR"))
 			{
 				return new Int(0);
 			}
 		}
 		catch (...) {}
 
-		return evaluateFormulas(Table::tableInstance->getTable()[row - 1][col - 1], row - 1, col - 1);
+		return evaluateFormulas(Table::tableInstance->getTable()[row - 1][col - 1], row - 1, col - 1, indexArr, indexArrSize);
 	}
-		
+
 	return Table::tableInstance->getTable()[row - 1][col - 1]->clone();
 }
 
@@ -509,12 +521,12 @@ void MainOperationClass::refactorNumsArray(char nums[][15], unsigned length, uns
 				: strlen(convertFromIntToString(result)) + 1,
 				(isDouble) ? convertFromDoubleToString(result)
 				: convertFromIntToString(result));
-		else if (i > index && i != length - 1)
+		else if (i > index&& i != length - 1)
 			strcpy_s(nums[i], strlen(nums[i + 1]) + 1, nums[i + 1]);
 	}
 }
 
-double MainOperationClass::checkOperandsValidity(char num[], bool& isThereError, unsigned int rowF, unsigned int colF)
+double MainOperationClass::checkOperandsValidity(char num[], bool& isThereError, unsigned int rowF, unsigned int colF, int indexArr[][2], unsigned int indexArrSize, bool& isThereInvalidFormatOfFormula)
 {
 	DataType* cellInfo = nullptr;
 
@@ -522,23 +534,17 @@ double MainOperationClass::checkOperandsValidity(char num[], bool& isThereError,
 	{
 		try
 		{
-			cellInfo = getCellValue(num, rowF, colF);
-			if (cellInfo)
-				cellInfo = getCellValue(num, rowF, colF)->clone();
+				cellInfo = getCellValue(num, rowF, colF, indexArr, indexArrSize)->clone();
 		}
 		catch (...)
 		{
 			// An error occurs, probably invalid format of the formula
 			isThereError = true;
+			isThereInvalidFormatOfFormula = true;
 			return 0;
 		}
 
-		if (cellInfo == nullptr)
-		{
-			isThereError = true;
-			return 0;
-		}
-		else if (typeid(*cellInfo) == typeid(Int) && cellInfo != nullptr)
+		if (typeid(*cellInfo) == typeid(Int) && cellInfo != nullptr)
 			return cellInfo->getInt();
 		else if (typeid(*cellInfo) == typeid(Double) && cellInfo != nullptr)
 			return cellInfo->getDouble();
@@ -553,7 +559,7 @@ double MainOperationClass::checkOperandsValidity(char num[], bool& isThereError,
 		return convertFromStringToInt(num);
 }
 
-char* MainOperationClass::calculateFormula(const char* formula, bool& isThereError, unsigned int rowF, unsigned int colF)
+char* MainOperationClass::calculateFormula(char* formula, bool& isThereError, unsigned int rowF, unsigned int colF, int indexArr[][2], unsigned int indexArrSize, bool& isThereInvalidFormatOfFormula)
 {
 	const unsigned int FIXEDSIZE = 15;
 	char nums[FIXEDSIZE][FIXEDSIZE];
@@ -565,6 +571,27 @@ char* MainOperationClass::calculateFormula(const char* formula, bool& isThereErr
 	unsigned int helpCounter = 0;
 
 	bool isThereSignPassed = true;
+
+	bool isThereAnyOperationInFormula = false;
+
+	removeWhiteSpaces(formula);
+
+	//Check if there are any operations in formula
+	for (int i = 0; i < strlen(formula); i++)
+	{
+		if (isCharSign(formula[i]) && i != 0 && i != strlen(formula) - 1)
+		{
+			isThereAnyOperationInFormula = true;
+			break;
+		}
+	}
+
+	if (!isThereAnyOperationInFormula)
+	{
+		isThereError = true;
+		isThereInvalidFormatOfFormula = true;
+		return nullptr;
+	}
 
 	//Separate literals or cells from operations
 	for (int i = 0; i < strlen(formula); i++)
@@ -599,24 +626,24 @@ char* MainOperationClass::calculateFormula(const char* formula, bool& isThereErr
 
 		if (isThereSignInArray(operations, operationCounter, '^', index))
 		{
-			double firstNum = checkOperandsValidity(nums[index], isThereError, rowF, colF);
-			double secondNum = checkOperandsValidity(nums[index + 1], isThereError, rowF, colF);
+			double firstNum = checkOperandsValidity(nums[index], isThereError, rowF, colF, indexArr, indexArrSize, isThereInvalidFormatOfFormula);
+			double secondNum = checkOperandsValidity(nums[index + 1], isThereError, rowF, colF, indexArr, indexArrSize, isThereInvalidFormatOfFormula);
 
 			if (isThereError) return nullptr;
 			result = pow(firstNum, secondNum);
 		}
 		else if (isThereSignInArray(operations, operationCounter, '*', index))
 		{
-			double firstNum = checkOperandsValidity(nums[index], isThereError, rowF, colF);
-			double secondNum = checkOperandsValidity(nums[index + 1], isThereError, rowF, colF);
+			double firstNum = checkOperandsValidity(nums[index], isThereError, rowF, colF, indexArr, indexArrSize, isThereInvalidFormatOfFormula);
+			double secondNum = checkOperandsValidity(nums[index + 1], isThereError, rowF, colF, indexArr, indexArrSize, isThereInvalidFormatOfFormula);
 
 			if (isThereError) return nullptr;
 			result = firstNum * secondNum;
 		}
 		else if (isThereSignInArray(operations, operationCounter, '/', index))
 		{
-			double firstNum = checkOperandsValidity(nums[index], isThereError, rowF, colF);
-			double secondNum = checkOperandsValidity(nums[index + 1], isThereError, rowF, colF);
+			double firstNum = checkOperandsValidity(nums[index], isThereError, rowF, colF, indexArr, indexArrSize, isThereInvalidFormatOfFormula);
+			double secondNum = checkOperandsValidity(nums[index + 1], isThereError, rowF, colF, indexArr, indexArrSize, isThereInvalidFormatOfFormula);
 
 			if (isThereError) return nullptr;
 			if (secondNum == 0)
@@ -629,8 +656,8 @@ char* MainOperationClass::calculateFormula(const char* formula, bool& isThereErr
 		}
 		else if (isThereSignInArray(operations, operationCounter, '-', index))
 		{
-			double firstNum = checkOperandsValidity(nums[index], isThereError, rowF, colF);
-			double secondNum = checkOperandsValidity(nums[index + 1], isThereError, rowF, colF);
+			double firstNum = checkOperandsValidity(nums[index], isThereError, rowF, colF, indexArr, indexArrSize, isThereInvalidFormatOfFormula);
+			double secondNum = checkOperandsValidity(nums[index + 1], isThereError, rowF, colF, indexArr, indexArrSize, isThereInvalidFormatOfFormula);
 
 			if (isThereError) return nullptr;
 			result = firstNum - secondNum;
@@ -638,8 +665,8 @@ char* MainOperationClass::calculateFormula(const char* formula, bool& isThereErr
 		}
 		else if (isThereSignInArray(operations, operationCounter, '+', index))
 		{
-			double firstNum = checkOperandsValidity(nums[index], isThereError, rowF, colF);
-			double secondNum = checkOperandsValidity(nums[index + 1], isThereError, rowF, colF);
+			double firstNum = checkOperandsValidity(nums[index], isThereError, rowF, colF, indexArr, indexArrSize, isThereInvalidFormatOfFormula);
+			double secondNum = checkOperandsValidity(nums[index + 1], isThereError, rowF, colF, indexArr, indexArrSize, isThereInvalidFormatOfFormula);
 
 			if (isThereError) return nullptr;
 			result = firstNum + secondNum;
@@ -655,18 +682,27 @@ char* MainOperationClass::calculateFormula(const char* formula, bool& isThereErr
 
 }
 
-DataType* MainOperationClass::evaluateFormulas(DataType* formula, unsigned int rowF, unsigned int colF)
+DataType* MainOperationClass::evaluateFormulas(DataType*& formula, unsigned int rowF, unsigned int colF, int indexArr[][2], unsigned int indexArrSize)
 {
 	bool isThereError = false;
+	bool isThereInvalidFormatOfFormula = false;
 	char formulaArray[50];
 
-	char* formulaP = calculateFormula(removeEqualSign(formula->getFormula()), isThereError, rowF, colF);
+	char* formulaP = calculateFormula(removeEqualSign(formula->getFormula()), isThereError, rowF, colF, indexArr, indexArrSize, isThereInvalidFormatOfFormula);
 
 	if (formulaP)
 		strcpy_s(formulaArray, strlen(formulaP) + 1, formulaP);
 
 	if (isThereError)
 	{
+		if (isThereInvalidFormatOfFormula)
+		{
+			formula = new (nothrow) Int(0);
+			if (!formula) throw "Memory problem!";
+
+			return new (nothrow) Int(0);
+		}
+		else
 		return new (nothrow) String("ERROR");
 	}
 	else
@@ -774,7 +810,7 @@ void MainOperationClass::checkSizeOfTable(unsigned int row, unsigned int col)
 		Table::tableInstance->resizeTable(Table::tableInstance->getRowCount(), col);
 }
 
-unsigned int MainOperationClass::getLengthOfCell(DataType* cell, unsigned int rowF, unsigned int colF)
+unsigned int MainOperationClass::getLengthOfCell(DataType* cell, unsigned int rowF, unsigned int colF, int indexArr[][2], unsigned int indexArrSize)
 {
 	//Find the length of the evaluation of the formula
 	if (typeid(*cell) == typeid(Int))
@@ -782,11 +818,11 @@ unsigned int MainOperationClass::getLengthOfCell(DataType* cell, unsigned int ro
 	else if (typeid(*cell) == typeid(Double))
 		return findNumDoubleLength(cell->getDouble());
 	else if (typeid(*cell) == typeid(String))
-		return strlen(cell->getString());
+		return strlen(cell->getString());	
 	else if (typeid(*cell) == typeid(Formula))
 	{
-		DataType* formula = evaluateFormulas(cell, rowF, colF);
-		return getLengthOfCell(formula, rowF, colF);
+		DataType* formula = evaluateFormulas(cell, rowF, colF, indexArr, indexArrSize);
+		return getLengthOfCell(formula, rowF, colF, indexArr, indexArrSize);
 	}
 }
 
@@ -1158,6 +1194,8 @@ void MainOperationClass::printTable()
 
 	cout << endl;
 
+	int indexArray[20][2];
+
 	//Store the length of the longest element in each column
 	int* elementLengthArray = new (nothrow) int[Table::tableInstance->getColCount()];
 	if (!elementLengthArray) throw "Memory problem!";
@@ -1168,9 +1206,10 @@ void MainOperationClass::printTable()
 
 		for (int j = 0; j < Table::tableInstance->getRowCount(); j++)
 		{
-			if (maxLength < getLengthOfCell(Table::tableInstance->getTable()[j][i], j, i))
-				maxLength = getLengthOfCell(Table::tableInstance->getTable()[j][i], j, i);
+			if (maxLength < getLengthOfCell(Table::tableInstance->getTable()[j][i], j, i, indexArray, 0))
+				maxLength = getLengthOfCell(Table::tableInstance->getTable()[j][i], j, i, indexArray, 0);
 		}
+
 
 		elementLengthArray[i] = maxLength;
 	}
@@ -1183,13 +1222,15 @@ void MainOperationClass::printTable()
 			if (elementLengthArray[j] == 0)
 				cout << " ";
 			else
-				placeSpace(elementLengthArray[j] - getLengthOfCell(Table::tableInstance->getTable()[i][j], i, j));
-
+			{
+				placeSpace(elementLengthArray[j] - getLengthOfCell(Table::tableInstance->getTable()[i][j], i, j, indexArray, 0));
+			}
+				
 			if (typeid(*Table::tableInstance->getTable()[i][j]) != typeid(Formula))
 				Table::tableInstance->printValue(Table::tableInstance->getTable()[i][j]);
 			else
 			{
-				DataType* formula = evaluateFormulas(Table::tableInstance->getTable()[i][j], i, j);
+				DataType* formula = evaluateFormulas(Table::tableInstance->getTable()[i][j], i, j, indexArray, 0);
 				Table::tableInstance->printValue(formula);
 			}
 
